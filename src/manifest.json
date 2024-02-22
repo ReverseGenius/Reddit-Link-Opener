@@ -1,5 +1,5 @@
 {
-   "manifest_version": 2,
+   "manifest_version": 3,
    
    "name": "Reddit Link Opener",
    "description": "This extension will open all links in tabs on Reddit and all Subreddits",
