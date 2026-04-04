@@ -17,7 +17,8 @@ function hasAncestorWithClass(el, className) {
 }
 
 function fakeClick(obj) {
-  var thing = obj.closest('.thing');
+  // Support Shreddit web components as well as old .thing containers
+  var thing = obj.closest('shreddit-post') || obj.closest('.thing');
   if (thing) thing.classList.add('visited');
 
   var evObj = document.createEvent('MouseEvents');
@@ -32,14 +33,25 @@ function isNSFW(el) {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   switch (request.action) {
     case 'openRedditLinks': {
-      var isNewRedditLayout = !document.getElementById('siteTable');
+      var isShreddit  = !!document.querySelector('shreddit-post');
+      var isOldReddit = !!document.getElementById('siteTable');
 
-      if (isNewRedditLayout) {
-        link_set    = Array.from(document.querySelectorAll('.scrollerItem a[data-click-id="body"]')).filter(isVisible);
-        comment_set = Array.from(document.querySelectorAll('.scrollerItem a[data-click-id="comments"]')).filter(isVisible);
-      } else {
+      if (isShreddit) {
+        // www.reddit.com — Web Components layout (2024+)
+        link_set = Array.from(document.querySelectorAll('shreddit-post a[slot="full-post-link"]')).filter(isVisible);
+        // Fallback if slot attribute is not present
+        if (link_set.length === 0) {
+          link_set = Array.from(document.querySelectorAll('shreddit-post a[data-click-id="body"]')).filter(isVisible);
+        }
+        comment_set = Array.from(document.querySelectorAll('shreddit-post a[data-click-id="comments"]')).filter(isVisible);
+      } else if (isOldReddit) {
+        // old.reddit.com — classic layout
         link_set    = Array.from(document.querySelectorAll('#siteTable a.title')).filter(isVisible);
         comment_set = Array.from(document.querySelectorAll('#siteTable a.comments')).filter(isVisible);
+      } else {
+        // Legacy fallback — 2018 new-Reddit layout
+        link_set    = Array.from(document.querySelectorAll('.scrollerItem a[data-click-id="body"]')).filter(isVisible);
+        comment_set = Array.from(document.querySelectorAll('.scrollerItem a[data-click-id="comments"]')).filter(isVisible);
       }
 
       var data = [];
@@ -65,13 +77,14 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 
     case 'openNextPage': {
-      var isNewRedditLayout = !document.getElementById('siteTable');
+      var isOldReddit = !!document.getElementById('siteTable');
 
-      if (isNewRedditLayout) {
-        window.scrollTo(0, document.body.scrollHeight);
-      } else {
+      if (isOldReddit) {
         var nextLink = document.querySelector('.nextprev a[rel~="next"]');
         if (nextLink) window.location = nextLink.href;
+      } else {
+        // Shreddit and legacy new Reddit both use infinite scroll
+        window.scrollTo(0, document.body.scrollHeight);
       }
       break;
     }
