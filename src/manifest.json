@@ -1,33 +1,38 @@
 {
-   "manifest_version": 2,
-   
+   "manifest_version": 3,
+
    "name": "Reddit Link Opener",
    "description": "This extension will open all links in tabs on Reddit and all Subreddits",
    "icons": {
       "128": "img/icon128.png"
    },
-   "version": "1.7.1",
-   
-   "background": { 
-     "page": "background.html"
+   "version": "2.0.0",
+
+   "background": {
+     "service_worker": "background.js"
    },
-   
-   "browser_action": {
+
+   "action": {
       "default_icon": "img/icon19.png",
       "default_title": "Reddit Link Opener"
    },
-   
+
    "content_scripts": [ {
-      "js": [ "jquery-1.6.4.min.js", "shortcut.js", "contentScript.js"],
-      "matches": [ "http://www.reddit.com/*", "https://www.reddit.com/*", "http://old.reddit.com/*", "https://old.reddit.com/*"],
-      "run_at": "document_start"
+      "js": [ "shortcut.js", "contentScript.js"],
+      "matches": [ "https://www.reddit.com/*", "https://old.reddit.com/*"],
+      "run_at": "document_idle"
    } ],
-   
+
    "options_page": "options.html",
-   
+
    "permissions": [
      "tabs",
      "history",
-     "unlimitedStorage"
-    ]   
+     "storage"
+   ],
+
+   "host_permissions": [
+     "https://www.reddit.com/*",
+     "https://old.reddit.com/*"
+   ]
 }

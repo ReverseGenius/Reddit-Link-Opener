@@ -1,94 +1,116 @@
-var jquery_set_links;
-var jquery_set_comments;
+// contentScript.js - Manifest V3 (no jQuery dependency)
+
+var link_set = [];
+var comment_set = [];
+
+function isVisible(el) {
+  return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+}
+
+function hasAncestorWithClass(el, className) {
+  var parent = el.parentElement;
+  while (parent) {
+    if (parent.classList && parent.classList.contains(className)) return true;
+    parent = parent.parentElement;
+  }
+  return false;
+}
 
 function fakeClick(obj) {
-	$(obj).closest('.thing').addClass('visited');
-	
-	var evObj = document.createEvent('MouseEvents');
-	evObj.initMouseEvent("mousedown", true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 1, null);
-	
-	obj.dispatchEvent(evObj);
+  // Support Shreddit web components as well as old .thing containers
+  var thing = obj.closest('shreddit-post') || obj.closest('.thing');
+  if (thing) thing.classList.add('visited');
+
+  var evObj = document.createEvent('MouseEvents');
+  evObj.initMouseEvent('mousedown', true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 1, null);
+  obj.dispatchEvent(evObj);
 }
 
-function isNSFW(url) {	
-	/*
-	var nsfw_arr = $("#siteTable .even .nsfw-stamp, #siteTable .odd .nsfw-stamp");
-	
-	for (var i=0; i < nsfw_arr.length; i++) {
-	  if (url.parentNode.parentNode == nsfw_arr[i].parentNode.parentNode){
-	  	return true;
-	  }	  
-	};
-	*/
-	
-	return false;
+function isNSFW(el) {
+  return false;
 }
 
-chrome.extension.onRequest.addListener(function(request, sender, callback) {	
-	switch (request.action) {
-		case 'openRedditLinks':		
-			var isNewRedditLayout = $("#siteTable").length === 0;
-			
-			if (isNewRedditLayout) {				
-				jquery_set_links = $('.scrollerItem a[data-click-id="body"]:visible');
-				jquery_set_comments = $('.scrollerItem a[data-click-id="comments"]:visible');
-			} else {
-				jquery_set_links = $("#siteTable a.title:visible");
-				jquery_set_comments = $("#siteTable a.comments:visible");
-			}
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  switch (request.action) {
+    case 'openRedditLinks': {
+      var isShreddit  = !!document.querySelector('shreddit-post');
+      var isOldReddit = !!document.getElementById('siteTable');
 
-			var data = Array();
+      if (isShreddit) {
+        // www.reddit.com — Web Components layout (2024+)
+        link_set = Array.from(document.querySelectorAll('shreddit-post a[slot="full-post-link"]')).filter(isVisible);
+        // Fallback if slot attribute is not present
+        if (link_set.length === 0) {
+          link_set = Array.from(document.querySelectorAll('shreddit-post a[data-click-id="body"]')).filter(isVisible);
+        }
+        comment_set = Array.from(document.querySelectorAll('shreddit-post a[data-click-id="comments"]')).filter(isVisible);
+      } else if (isOldReddit) {
+        // old.reddit.com — classic layout
+        link_set    = Array.from(document.querySelectorAll('#siteTable a.title')).filter(isVisible);
+        comment_set = Array.from(document.querySelectorAll('#siteTable a.comments')).filter(isVisible);
+      } else {
+        // Legacy fallback — 2018 new-Reddit layout
+        link_set    = Array.from(document.querySelectorAll('.scrollerItem a[data-click-id="body"]')).filter(isVisible);
+        comment_set = Array.from(document.querySelectorAll('.scrollerItem a[data-click-id="comments"]')).filter(isVisible);
+      }
 
-			var i;
-			for( i = 0; i < jquery_set_links.length; i++) {
-				var isLinkNSFW = isNSFW(jquery_set_links[i]);
-				var linkWasNotMarkedVisited = ($(jquery_set_links[i]).parents('.visited').length == 0);
-				
-				data.push(new Array(jquery_set_links[i].text, jquery_set_links[i].href, jquery_set_comments[i].href, isLinkNSFW, linkWasNotMarkedVisited));
-			}
+      var data = [];
+      for (var i = 0; i < link_set.length; i++) {
+        var linkEl = link_set[i];
+        var commentEl = comment_set[i] || null;
+        var linkIsNSFW = isNSFW(linkEl);
+        var linkNotVisited = !hasAncestorWithClass(linkEl, 'visited');
 
-			if(data.length > 0) {
-				callback({
-					urls : data,
-					tabid : request.tabid
-				});
-			}
-			break;
+        data.push([
+          linkEl.textContent.trim(),
+          linkEl.href,
+          commentEl ? commentEl.href : '',
+          linkIsNSFW,
+          linkNotVisited
+        ]);
+      }
 
-		case 'openNextPage':
-			var isNewRedditLayout = $("#siteTable").length === 0;
-			
-			if (isNewRedditLayout) {
-				window.scrollTo(0, document.body.scrollHeight);
-			} else {
-				window.location = $('.nextprev a[rel~="next"]').attr("href");
-			}		
-			
-			break;
+      if (data.length > 0) {
+        sendResponse({urls: data, tabid: request.tabid});
+      }
+      break;
+    }
 
-		case 'scrapeInfoCompanionBar':
-			fakeClick(jquery_set_links[request.index]);
-			break;
+    case 'openNextPage': {
+      var isOldReddit = !!document.getElementById('siteTable');
 
-		case 'updateSettings':
-			if(request.keyboardshortcut != request.oldkeyboardshortcut) {
-				if(request.oldkeyboardshortcut) {
-					shortcut.remove(request.oldkeyboardshortcut);
-				}
+      if (isOldReddit) {
+        var nextLink = document.querySelector('.nextprev a[rel~="next"]');
+        if (nextLink) window.location = nextLink.href;
+      } else {
+        // Shreddit and legacy new Reddit both use infinite scroll
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+      break;
+    }
 
-				shortcut.add(request.keyboardshortcut, function() {
-					chrome.extension.sendRequest({
-						action : "keyboardShortcut"
-					});
-				});
-			}
-			break;
+    case 'scrapeInfoCompanionBar':
+      if (link_set[request.index]) {
+        fakeClick(link_set[request.index]);
+      }
+      break;
 
-		default:
-			break;
-	}
+    case 'updateSettings':
+      if (request.keyboardshortcut !== request.oldkeyboardshortcut) {
+        if (request.oldkeyboardshortcut) {
+          shortcut.remove(request.oldkeyboardshortcut);
+        }
+        shortcut.add(request.keyboardshortcut, function() {
+          chrome.runtime.sendMessage({action: 'keyboardShortcut'});
+        });
+      }
+      break;
+
+    default:
+      break;
+  }
+
+  return true;
 });
 
-chrome.extension.sendRequest({
-	action : "initKeyboardShortcut"
-});
+chrome.runtime.sendMessage({action: 'initKeyboardShortcut'});
