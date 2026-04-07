@@ -51,6 +51,13 @@ Released   : 20081230
 1.6.0 : Add option to open i.redd.it and i.reddituploads.com image links directly
 1.7.0 : Apply band-aid fix to support the new reddit layout
 1.7.1 : Add compatibility support for old reddit layout and old.reddit.com
+2.0.0 : Migrate to Manifest V3 — replace background page with service worker,
+        remove jQuery, replace all deprecated chrome.extension.* APIs with
+        chrome.runtime.*, switch localStorage to chrome.storage.local (async),
+        add three-tier Reddit layout detection: Shreddit (Web Components 2024+),
+        Old Reddit, Legacy fallback
+2.0.1 : Fix visited link detection — URLs are now added to browser history
+        immediately on open so the same links are never opened twice
 </pre>
 				<a href="options.html">Open Option Page</a>
 			</div>

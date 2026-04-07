@@ -67,9 +67,13 @@ function openUrl(urls, index, count, tabid, settings) {
         index: index
       }).catch(function() {});
 
+      // Add to history immediately so subsequent triggers skip this URL
+      // (chrome.tabs.create only adds to history after the tab finishes loading)
+      chrome.history.addUrl({url: url[1]});
       chrome.tabs.create({url: url[1], active: false});
 
       if (opencomments && url[2] && url[1] !== url[2]) {
+        chrome.history.addUrl({url: url[2]});
         chrome.tabs.create({url: url[2], active: false});
       }
 
